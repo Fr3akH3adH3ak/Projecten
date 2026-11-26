@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linux op een oude tablet · freakyshits.org</title>
+<meta name="description" content="Hoe ik een oude Android-tablet ombouwde tot een kleine Linux-machine met Alpine Linux.">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main class="wrap">
+  <a class="terug" href="../">← Terug naar alle projecten</a>
+  <p class="prompt">localhost:~# cat tablet.txt</p>
+  <h1>Linux op een oude tablet</h1>
+  <p class="intro">Een oude tablet met Android 4.4.2 (Allwinner A33) lag ongebruikt in de kast. Ik wilde een klein apparaat waarop ik overal in een echte Linux-terminal kan werken. Dus bouwde ik hem om.</p>
+
+  <h2>Het idee</h2>
+  <p>Linux bestaat uit twee delen. De <strong>kernel</strong> praat met de hardware: scherm, wifi en SD-kaart. De <strong>programma's</strong> zijn alles wat je typt, zoals <code>bash</code>, <code>git</code> en <code>python</code>. Android draait zelf al een Linux-kernel. Ik hoefde dus alleen de programma's van Alpine Linux op de SD-kaart te zetten en erin te stappen.</p>
+
+  <h2>Hoe ik het deed</h2>
+  <ol class="stappen">
+    <li><strong>De tablet onderzoeken.</strong> Als root in een terminal-app keek ik wat er kon: welke tools er zijn, of de kernel ext4 kent en of er loop-devices zijn.</li>
+    <li><strong>Een probleem met de SD-kaart.</strong> De kaart was exFAT, en dat kent geen Linux-rechten en snelkoppelingen. Mijn oplossing: één groot bestand van 8 GB op de kaart, met daarin een eigen ext4-bestandssysteem, gekoppeld als een "loop-device".</li>
+    <li><strong>Alpine ophalen via mijn iPhone.</strong> De tablet kan geen moderne HTTPS-sites meer openen. Mijn iPhone haalde Alpine op en speelde even webserver op mijn eigen wifi, zodat de tablet het bestand kon ophalen. Daarna controleerde ik met een hash dat het bestand heel was, en zette ik de server meteen weer uit.</li>
+    <li><strong>Instappen met chroot.</strong> Met <code>chroot</code> stap je in een map alsof het de hoofdmap van een ander systeem is. Na één commando zat ik in Alpine, met toegang tot ruim 27.000 pakketten.</li>
+    <li><strong>Een eigen startscript.</strong> Na een herstart is alles losgekoppeld. Mijn script koppelt alleen wat nog niet gekoppeld is en stapt dan Alpine in. Eén commando en ik ben terug.</li>
+    <li><strong>Plaatjes en grafieken in de terminal.</strong> Met gnuplot maak ik grafieken in tekst, en met chafa en twee eigen Python-scripts zet ik een foto om in gekleurde blokjes of tekens.</li>
+  </ol>
+
+  <h2>Wat ik ervan leerde</h2>
+  <ul class="leer">
+    <li>Hoe Linux is opgebouwd: kernel, programma's, bestandssystemen en mounts.</li>
+    <li>De prompt lezen: <code>$</code> of <code>#</code>, en wat een afsluitcode als 127 betekent.</li>
+    <li>Foutmeldingen lezen in plaats van gokken: een 404 is iets anders dan "connection refused".</li>
+    <li>Veilig werken: een webserver op je wifi zet je meteen weer uit, en een chroot is geen beveiliging.</li>
+  </ul>
+
+  <h2>Hoe ver ik ben</h2>
+  <div class="blok">
+    <p>Alpine draait en komt na een herstart met één commando terug. Volgende stap: de tablet direct in Alpine laten opstarten, zonder eerst het Android-scherm. Daarna wordt een laptop met Linux mijn echte werkmachine.</p>
+  </div>
+
+  <footer>© 2026 Silvano Rinaldi · Alle rechten voorbehouden. Bekijken mag, kopiëren of hergebruiken alleen met mijn toestemming.</footer>
+</main>
+</body>
+</html>
