@@ -1,857 +1,1198 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="nl" data-bs-theme="dark">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>System Access Simulator</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --ink: #060a06;
-    --panel: #0c140d;
-    --line: #1d4a29;
-    --text: #c2e8c8;
-    --good: #3dff7a;
-    --warn: #ffc247;
-    --bad: #ff4d4d;
-  }
-  body {
-    background: radial-gradient(ellipse at top, #0f2615 0%, var(--ink) 60%) fixed;
-    color: var(--text);
-    font-family: 'IBM Plex Mono', 'Courier New', monospace;
-    min-height: 100vh;
-  }
-  .sim-card { background: rgba(12, 20, 13, .88); border: 1px solid var(--line); box-shadow: 0 0 40px rgba(61, 255, 122, .08); }
-  .sim-card .card-header, .sim-card .card-footer { background: transparent; border-color: var(--line); }
-  .sim-title { color: var(--good); font-weight: 600; letter-spacing: .02em; }
-  #terminal-screen {
-    height: 340px;
-    overflow-y: auto;
-    background: rgba(6, 10, 6, .92);
-    border: 1px solid var(--line);
-    border-radius: .5rem;
-    padding: .85rem 1rem;
-    font-size: .92rem;
-    line-height: 1.55;
-  }
-  #terminal-screen .cmd  { color: #fff; }
-  #terminal-screen .ok   { color: var(--good); }
-  #terminal-screen .warn { color: var(--warn); }
-  #terminal-screen .err  { color: var(--bad); }
-  #terminal-screen .dim  { color: #6f9a78; }
-  .prompt-sign { background: var(--ink); color: var(--good); border-color: var(--line); font-family: inherit; }
-  #terminal-input {
-    background: var(--ink);
-    color: #fff;
-    border-color: var(--line);
-    font-family: inherit;
-  }
-  #terminal-input:focus { border-color: var(--good); box-shadow: 0 0 0 .2rem rgba(61, 255, 122, .2); }
-  .quick-cmd { font-family: inherit; font-size: .8rem; }
-  .badge, #btn-sound, #btn-matrix { font-family: inherit; font-weight: 600; }
-  #btn-sound, #btn-matrix { font-size: .75em; padding: .35em .65em; line-height: 1; }
-  #matrix-regen { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; opacity: .45; }
-  main.container { position: relative; z-index: 1; }
-  .progress { background: var(--ink); height: .6rem; }
-  .progress-bar { transition: width .3s ease; }
-  @media (prefers-reduced-motion: reduce) { .progress-bar { transition: none; } }
-</style>
-</head>
-<body>
-<canvas id="matrix-regen" aria-hidden="true"></canvas>
-<main class="container py-4" style="max-width: 760px;">
-  <div class="card sim-card">
-    <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center py-3">
-      <h1 class="h5 m-0 sim-title">System Access Simulator</h1>
-      <div class="d-flex flex-wrap gap-2 align-items-center">
-        <span class="badge text-bg-dark border" id="badge-level">Level 1/3</span>
-        <span class="badge text-bg-dark border" id="badge-cover">Cover: 2</span>
-        <span class="badge text-bg-secondary" id="badge-rol">Gast</span>
-        <span class="badge text-bg-dark border" id="badge-doel">Geen doel</span>
-        <button type="button" class="btn btn-outline-secondary" id="btn-sound" aria-pressed="true">Geluid: aan</button>
-        <button type="button" class="btn btn-outline-secondary" id="btn-matrix" aria-pressed="true">Regen: aan</button>
-      </div>
-    </div>
-
-    <div class="card-body">
-      <div id="terminal-screen" aria-live="polite"></div>
-
-      <div class="d-flex flex-wrap gap-2 my-3" id="quick-buttons">
-        <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="help">help</button>
-        <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="scan">scan</button>
-        <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="hack">hack</button>
-        <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="ls">ls</button>
-        <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="cover">cover</button>
-        <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="hint">hint</button>
-        <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="status">status</button>
-        <button class="btn btn-success btn-sm quick-cmd d-none" id="btn-next" data-cmd="next">next &raquo;</button>
-      </div>
-
-      <div class="d-flex flex-wrap align-items-center gap-2 mb-3" id="chips" aria-label="Snelkeuze servers en bestanden"></div>
-
-      <div class="input-group">
-        <span class="input-group-text prompt-sign">$</span>
-        <input type="text" id="terminal-input" class="form-control" placeholder="Voer commando in... (Tab vult aan)" autocomplete="off" autofocus>
-      </div>
-    </div>
-
-    <div class="card-footer py-3">
-      <div class="d-flex justify-content-between small mb-1">
-        <span>Trace-niveau</span>
-        <span id="trace-label">0%</span>
-      </div>
-      <div class="progress" role="progressbar" aria-label="Trace-niveau" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="trace-wrap">
-        <div class="progress-bar bg-success" id="trace-bar" style="width: 0%"></div>
-      </div>
-      <div class="d-flex flex-wrap justify-content-between gap-2 small mt-2" style="color:#6f9a78">
-        <span id="missie-label"></span>
-        <span id="score-label"></span>
-      </div>
-    </div>
-  </div>
-</main>
-
-<script>
-const input = document.getElementById('terminal-input');
-const screen = document.getElementById('terminal-screen');
-const badgeRol = document.getElementById('badge-rol');
-const badgeDoel = document.getElementById('badge-doel');
-const badgeCover = document.getElementById('badge-cover');
-const badgeLevel = document.getElementById('badge-level');
-const btnSound = document.getElementById('btn-sound');
-const btnNext = document.getElementById('btn-next');
-const traceBar = document.getElementById('trace-bar');
-const traceLabel = document.getElementById('trace-label');
-const traceWrap = document.getElementById('trace-wrap');
-const missieLabel = document.getElementById('missie-label');
-const scoreLabel = document.getElementById('score-label');
-
-const MAX_COVER = 2;
-// Veelgebruikte (zwakke) wachtwoorden voor de woordenlijst-aanval
-const WOORDENLIJST = [
-  '123456', 'password1', 'welkom123', 'qwerty', 'wachtwoord',
-  'admin', 'letmein', '111111', 'iloveyou', 'geheim'
-];
-const POGING_TRACE = 2;   // trace per woordenlijst-poging
-const LOGIN_TRACE = 5;    // trace per verkeerde handmatige login
-const COMMANDS = ['help', 'scan', 'connect', 'hack', 'login', 'ls', 'cat', 'cover', 'hint', 'status', 'sound', 'matrix', 'next', 'clear', 'restart'];
-
-/* ------------------------------ LEVELS ------------------------------ */
-const LEVELS = [
-  {
-    titel: 'Level 1: Nachtuil',
-    intro: 'Een oude mainframe bewaart een geheim. Zoek uit hoe je binnenkomt.',
-    missie: { server: 'mainframe_server_01', bestand: 'geheim.txt' },
-    tickSec: 6,
-    tijdStraf: 2,
-    hints: [
-      'Lees de bestanden op alle servers. Ze verwijzen naar elkaar.',
-      'Twee servers noemen hetzelfde jaar.',
-      'Het jaar is de code: hack 2019 op de mainframe.'
-    ],
-    doelen: {
-      mainframe_server_01: {
-        naam: 'Mainframe_Server_01',
-        code: '2019',
-        bestanden: {
-          'logboek.txt': 'Laatste login: admin, 03:12. Geen afwijkingen gemeld.',
-          'geheim.txt': 'PROJECT NACHTUIL: de sleutel ligt in kluis 7. MISSIE VOLTOOID.'
-        }
-      },
-      camera_hub_07: {
-        naam: 'Camera_Hub_07',
-        wachtwoord: 'welkom123',
-        bestanden: {
-          'notitie.txt': 'Tip van de beheerder: het echte geheim staat op de mainframe.',
-          'camera.log': 'Beveiligingsbeeld: beheerder tikt een 4-cijferige code in. Het is het jaar van het oudste rapport in het archief.'
-        }
-      },
-      archive_node_03: {
-        naam: 'Archive_Node_03',
-        wachtwoord: 'qwerty',
-        bestanden: {
-          'oud_rapport.txt': 'Rapport 2019: de mainframe bevat een bestand genaamd geheim.txt.',
-          'inventaris.txt': 'Nog 1 rapport in dit archief. Oudste datum: 2019.'
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>System Access Simulator</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #060a06;
+        --panel: #0c140d;
+        --line: #1d4a29;
+        --text: #c2e8c8;
+        --good: #3dff7a;
+        --warn: #ffc247;
+        --bad: #ff4d4d;
+      }
+      body {
+        background: radial-gradient(ellipse at top, #0f2615 0%, var(--ink) 60%) fixed;
+        color: var(--text);
+        font-family: 'IBM Plex Mono', 'Courier New', monospace;
+        min-height: 100vh;
+      }
+      .sim-card {
+        background: rgba(12, 20, 13, 0.88);
+        border: 1px solid var(--line);
+        box-shadow: 0 0 40px rgba(61, 255, 122, 0.08);
+      }
+      .sim-card .card-header,
+      .sim-card .card-footer {
+        background: transparent;
+        border-color: var(--line);
+      }
+      .sim-title {
+        color: var(--good);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      #terminal-screen {
+        height: 340px;
+        overflow-y: auto;
+        background: rgba(6, 10, 6, 0.92);
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        padding: 0.85rem 1rem;
+        font-size: 0.92rem;
+        line-height: 1.55;
+      }
+      #terminal-screen .cmd {
+        color: #fff;
+      }
+      #terminal-screen .ok {
+        color: var(--good);
+      }
+      #terminal-screen .warn {
+        color: var(--warn);
+      }
+      #terminal-screen .err {
+        color: var(--bad);
+      }
+      #terminal-screen .dim {
+        color: #6f9a78;
+      }
+      .prompt-sign {
+        background: var(--ink);
+        color: var(--good);
+        border-color: var(--line);
+        font-family: inherit;
+      }
+      #terminal-input {
+        background: var(--ink);
+        color: #fff;
+        border-color: var(--line);
+        font-family: inherit;
+      }
+      #terminal-input:focus {
+        border-color: var(--good);
+        box-shadow: 0 0 0 0.2rem rgba(61, 255, 122, 0.2);
+      }
+      .quick-cmd {
+        font-family: inherit;
+        font-size: 0.8rem;
+      }
+      .badge,
+      #btn-sound,
+      #btn-matrix {
+        font-family: inherit;
+        font-weight: 600;
+      }
+      #btn-sound,
+      #btn-matrix {
+        font-size: 0.75em;
+        padding: 0.35em 0.65em;
+        line-height: 1;
+      }
+      #matrix-regen {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        pointer-events: none;
+        opacity: 0.45;
+      }
+      main.container {
+        position: relative;
+        z-index: 1;
+      }
+      .progress {
+        background: var(--ink);
+        height: 0.6rem;
+      }
+      .progress-bar {
+        transition: width 0.3s ease;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .progress-bar {
+          transition: none;
         }
       }
-    }
-  },
-  {
-    titel: 'Level 2: Glasvezel',
-    intro: 'Een telecombedrijf verbergt iets in zijn backup-vault. De code is in tweeen gesplitst.',
-    missie: { server: 'backup_vault_09', bestand: 'glasvezel.txt' },
-    tickSec: 5,
-    tijdStraf: 1.5,
-    hints: [
-      'De vault-code bestaat uit twee helften, bewaard op twee verschillende servers.',
-      'Voorste helft: staat in een bestand op de mail-server. Achterste helft: verdiepingen + 1. De db-cluster heeft een sterk wachtwoord: zoek een mail.',
-      'Het aantal verdiepingen vind je in een mail. De code is 4071.'
-    ],
-    doelen: {
-      gateway_02: {
-        naam: 'Gateway_02',
-        wachtwoord: 'password1',
-        bestanden: {
-          'welkom.txt': 'Interne servers: db_cluster_11, mail_relay_04, printer_node_05, backup_vault_09.',
-          'tip.txt': 'De backup-vault heeft een code van 4 cijfers. Ik heb hem in twee helften verdeeld en op twee plekken bewaard.'
-        }
-      },
-      db_cluster_11: {
-        naam: 'DB_Cluster_11',
-        wachtwoord: 'glasvezel42',
-        bestanden: {
-          'config.txt': 'Vault-code, achterste helft: het aantal verdiepingen van het hoofdkantoor, gevolgd door een 1.',
-          'klanten.csv': 'Geen toegang tot klantgegevens met deze rol. Niets bruikbaars.'
-        }
-      },
-      mail_relay_04: {
-        naam: 'Mail_Relay_04',
-        wachtwoord: 'admin',
-        bestanden: {
-          'mail_0042.txt': 'Van: facilitair. Het hoofdkantoor heeft 7 verdiepingen. Vergeet de liftkeuring niet.',
-          'voorhelft.txt': 'Vault-code, voorste helft: 40.',
-          'mail_0043.txt': 'Van: IT. De databasebeheerder gebruikt de projectnaam (glasvezel) plus het getal 42 als wachtwoord.'
-        }
-      },
-      printer_node_05: {
-        naam: 'Printer_Node_05',
-        bestanden: {
-          'log.txt': 'Toner bijna leeg. Laatste print: kerstkaarten.'
-        }
-      },
-      backup_vault_09: {
-        naam: 'Backup_Vault_09',
-        code: '4071',
-        bestanden: {
-          'logboek.txt': 'Laatste back-up: gisteren, 23:50.',
-          'glasvezel.txt': 'OPERATIE GLASVEZEL: de overdracht vindt plaats om middernacht. MISSIE VOLTOOID.'
+    </style>
+  </head>
+  <body>
+    <canvas id="matrix-regen" aria-hidden="true"></canvas>
+    <main class="container py-4" style="max-width: 760px">
+      <div class="card sim-card">
+        <div
+          class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center py-3"
+        >
+          <h1 class="h5 m-0 sim-title">System Access Simulator</h1>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="badge text-bg-dark border" id="badge-level">Level 1/3</span>
+            <span class="badge text-bg-dark border" id="badge-cover">Cover: 2</span>
+            <span class="badge text-bg-secondary" id="badge-rol">Gast</span>
+            <span class="badge text-bg-dark border" id="badge-doel">Geen doel</span>
+            <button
+              type="button"
+              class="btn btn-outline-secondary"
+              id="btn-sound"
+              aria-pressed="true"
+            >
+              Geluid: aan
+            </button>
+            <button
+              type="button"
+              class="btn btn-outline-secondary"
+              id="btn-matrix"
+              aria-pressed="true"
+            >
+              Regen: aan
+            </button>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div id="terminal-screen" aria-live="polite"></div>
+
+          <div class="d-flex flex-wrap gap-2 my-3" id="quick-buttons">
+            <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="help">help</button>
+            <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="scan">scan</button>
+            <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="hack">hack</button>
+            <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="ls">ls</button>
+            <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="cover">cover</button>
+            <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="hint">hint</button>
+            <button class="btn btn-outline-success btn-sm quick-cmd" data-cmd="status">
+              status
+            </button>
+            <button class="btn btn-success btn-sm quick-cmd d-none" id="btn-next" data-cmd="next">
+              next &raquo;
+            </button>
+          </div>
+
+          <div
+            class="d-flex flex-wrap align-items-center gap-2 mb-3"
+            id="chips"
+            aria-label="Snelkeuze servers en bestanden"
+          ></div>
+
+          <div class="input-group">
+            <span class="input-group-text prompt-sign">$</span>
+            <input
+              type="text"
+              id="terminal-input"
+              class="form-control"
+              placeholder="Voer commando in... (Tab vult aan)"
+              autocomplete="off"
+              autofocus
+            />
+          </div>
+        </div>
+
+        <div class="card-footer py-3">
+          <div class="d-flex justify-content-between small mb-1">
+            <span>Trace-niveau</span>
+            <span id="trace-label">0%</span>
+          </div>
+          <div
+            class="progress"
+            role="progressbar"
+            aria-label="Trace-niveau"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+            id="trace-wrap"
+          >
+            <div class="progress-bar bg-success" id="trace-bar" style="width: 0%"></div>
+          </div>
+          <div
+            class="d-flex flex-wrap justify-content-between gap-2 small mt-2"
+            style="color: #6f9a78"
+          >
+            <span id="missie-label"></span>
+            <span id="score-label"></span>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const input = document.getElementById('terminal-input');
+      const screen = document.getElementById('terminal-screen');
+      const badgeRol = document.getElementById('badge-rol');
+      const badgeDoel = document.getElementById('badge-doel');
+      const badgeCover = document.getElementById('badge-cover');
+      const badgeLevel = document.getElementById('badge-level');
+      const btnSound = document.getElementById('btn-sound');
+      const btnNext = document.getElementById('btn-next');
+      const traceBar = document.getElementById('trace-bar');
+      const traceLabel = document.getElementById('trace-label');
+      const traceWrap = document.getElementById('trace-wrap');
+      const missieLabel = document.getElementById('missie-label');
+      const scoreLabel = document.getElementById('score-label');
+
+      const MAX_COVER = 2;
+      // Veelgebruikte (zwakke) wachtwoorden voor de woordenlijst-aanval
+      const WOORDENLIJST = [
+        '123456',
+        'password1',
+        'welkom123',
+        'qwerty',
+        'wachtwoord',
+        'admin',
+        'letmein',
+        '111111',
+        'iloveyou',
+        'geheim',
+      ];
+      const POGING_TRACE = 2; // trace per woordenlijst-poging
+      const LOGIN_TRACE = 5; // trace per verkeerde handmatige login
+      const COMMANDS = [
+        'help',
+        'scan',
+        'connect',
+        'hack',
+        'login',
+        'ls',
+        'cat',
+        'cover',
+        'hint',
+        'status',
+        'sound',
+        'matrix',
+        'next',
+        'clear',
+        'restart',
+      ];
+
+      /* ------------------------------ LEVELS ------------------------------ */
+      const LEVELS = [
+        {
+          titel: 'Level 1: Nachtuil',
+          intro: 'Een oude mainframe bewaart een geheim. Zoek uit hoe je binnenkomt.',
+          missie: { server: 'mainframe_server_01', bestand: 'geheim.txt' },
+          tickSec: 6,
+          tijdStraf: 2,
+          hints: [
+            'Lees de bestanden op alle servers. Ze verwijzen naar elkaar.',
+            'Twee servers noemen hetzelfde jaar.',
+            'Het jaar is de code: hack 2019 op de mainframe.',
+          ],
+          doelen: {
+            mainframe_server_01: {
+              naam: 'Mainframe_Server_01',
+              code: '2019',
+              bestanden: {
+                'logboek.txt': 'Laatste login: admin, 03:12. Geen afwijkingen gemeld.',
+                'geheim.txt': 'PROJECT NACHTUIL: de sleutel ligt in kluis 7. MISSIE VOLTOOID.',
+              },
+            },
+            camera_hub_07: {
+              naam: 'Camera_Hub_07',
+              wachtwoord: 'welkom123',
+              bestanden: {
+                'notitie.txt': 'Tip van de beheerder: het echte geheim staat op de mainframe.',
+                'camera.log':
+                  'Beveiligingsbeeld: beheerder tikt een 4-cijferige code in. Het is het jaar van het oudste rapport in het archief.',
+              },
+            },
+            archive_node_03: {
+              naam: 'Archive_Node_03',
+              wachtwoord: 'qwerty',
+              bestanden: {
+                'oud_rapport.txt':
+                  'Rapport 2019: de mainframe bevat een bestand genaamd geheim.txt.',
+                'inventaris.txt': 'Nog 1 rapport in dit archief. Oudste datum: 2019.',
+              },
+            },
+          },
+        },
+        {
+          titel: 'Level 2: Glasvezel',
+          intro:
+            'Een telecombedrijf verbergt iets in zijn backup-vault. De code is in tweeen gesplitst.',
+          missie: { server: 'backup_vault_09', bestand: 'glasvezel.txt' },
+          tickSec: 5,
+          tijdStraf: 1.5,
+          hints: [
+            'De vault-code bestaat uit twee helften, bewaard op twee verschillende servers.',
+            'Voorste helft: staat in een bestand op de mail-server. Achterste helft: verdiepingen + 1. De db-cluster heeft een sterk wachtwoord: zoek een mail.',
+            'Het aantal verdiepingen vind je in een mail. De code is 4071.',
+          ],
+          doelen: {
+            gateway_02: {
+              naam: 'Gateway_02',
+              wachtwoord: 'password1',
+              bestanden: {
+                'welkom.txt':
+                  'Interne servers: db_cluster_11, mail_relay_04, printer_node_05, backup_vault_09.',
+                'tip.txt':
+                  'De backup-vault heeft een code van 4 cijfers. Ik heb hem in twee helften verdeeld en op twee plekken bewaard.',
+              },
+            },
+            db_cluster_11: {
+              naam: 'DB_Cluster_11',
+              wachtwoord: 'glasvezel42',
+              bestanden: {
+                'config.txt':
+                  'Vault-code, achterste helft: het aantal verdiepingen van het hoofdkantoor, gevolgd door een 1.',
+                'klanten.csv': 'Geen toegang tot klantgegevens met deze rol. Niets bruikbaars.',
+              },
+            },
+            mail_relay_04: {
+              naam: 'Mail_Relay_04',
+              wachtwoord: 'admin',
+              bestanden: {
+                'mail_0042.txt':
+                  'Van: facilitair. Het hoofdkantoor heeft 7 verdiepingen. Vergeet de liftkeuring niet.',
+                'voorhelft.txt': 'Vault-code, voorste helft: 40.',
+                'mail_0043.txt':
+                  'Van: IT. De databasebeheerder gebruikt de projectnaam (glasvezel) plus het getal 42 als wachtwoord.',
+              },
+            },
+            printer_node_05: {
+              naam: 'Printer_Node_05',
+              bestanden: {
+                'log.txt': 'Toner bijna leeg. Laatste print: kerstkaarten.',
+              },
+            },
+            backup_vault_09: {
+              naam: 'Backup_Vault_09',
+              code: '4071',
+              bestanden: {
+                'logboek.txt': 'Laatste back-up: gisteren, 23:50.',
+                'glasvezel.txt':
+                  'OPERATIE GLASVEZEL: de overdracht vindt plaats om middernacht. MISSIE VOLTOOID.',
+              },
+            },
+          },
+        },
+        {
+          titel: 'Level 3: Zwarte Doos',
+          intro:
+            'Een luchtvaartinstituut houdt vluchtdata achter slot en grendel. Let op: niet alles is wat het lijkt.',
+          missie: { server: 'zwarte_doos_00', bestand: 'zwarte_doos.txt' },
+          tickSec: 4,
+          tijdStraf: 1,
+          hints: [
+            'De code van de zwarte doos staat verdeeld over twee servers, waarvan een beveiligd is.',
+            'Voor de beveiligde server heb je een plakbriefje nodig. Zoek bij de bewaking.',
+            'Cijfer 1-2 staat bij de satelliet, cijfer 3-4 in de data lake. De code is 7342.',
+          ],
+          doelen: {
+            relay_hub_01: {
+              naam: 'Relay_Hub_01',
+              wachtwoord: '123456',
+              bestanden: {
+                'verkeer.txt':
+                  'Netwerkverkeer genormaliseerd. Twee servers bewaren elk een deel van de zwarte-doos-code.',
+                'servers.txt':
+                  'Actief: guard_cam_03, sat_link_12, data_lake_08, finance_db_66, zwarte_doos_00.',
+              },
+            },
+            guard_cam_03: {
+              naam: 'Guard_Cam_03',
+              wachtwoord: 'qwerty',
+              bestanden: {
+                'bewaker.txt':
+                  'Let op: finance_db_66 is een lokaas van de beveiliging. Niet aanraken!',
+                'plakbriefje.txt':
+                  'Plakbriefje op monitor: data_lake_08 = 0451 (Fahrenheit 451, mijn favoriete boek).',
+              },
+            },
+            sat_link_12: {
+              naam: 'Sat_Link_12',
+              wachtwoord: 'wachtwoord',
+              bestanden: {
+                'telemetrie.txt':
+                  'Zwarte-doos code: cijfer 1 en 2 zijn 73. De rest staat in de data lake.',
+              },
+            },
+            data_lake_08: {
+              naam: 'Data_Lake_08',
+              code: '0451',
+              bestanden: {
+                'index.txt':
+                  'Zwarte-doos code: cijfer 3 is 4, cijfer 4 is 2. De eerste twee staan bij de satelliet.',
+              },
+            },
+            finance_db_66: {
+              naam: 'Finance_DB_66',
+              lokaas: true,
+              traceKosten: 30,
+              bestanden: {
+                'wachtwoorden.txt': 'Dit is een lokaas. Hier staat niets nuttigs.',
+              },
+            },
+            zwarte_doos_00: {
+              naam: 'Zwarte_Doos_00',
+              code: '7342',
+              bestanden: {
+                'vluchtdata.txt': 'Vlucht 1409: 14.211 meter, laatste contact 03:12.',
+                'zwarte_doos.txt':
+                  'OPERATIE ZWARTE DOOS: de vlucht werd opzettelijk omgeleid. ALLE MISSIES VOLTOOID.',
+              },
+            },
+          },
+        },
+      ];
+
+      /* ------------------------------ GELUID ------------------------------ */
+      let audioCtx = null;
+      let geluidAan = true;
+      try {
+        geluidAan = localStorage.getItem('sas_geluid') !== 'uit';
+      } catch (e) {}
+
+      function toon(freq, duur, type, start, vol) {
+        if (!geluidAan) return;
+        try {
+          audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+          if (audioCtx.state === 'suspended') audioCtx.resume();
+          const t = audioCtx.currentTime + (start || 0);
+          const o = audioCtx.createOscillator();
+          const g = audioCtx.createGain();
+          o.type = type || 'square';
+          o.frequency.setValueAtTime(freq, t);
+          g.gain.setValueAtTime(vol || 0.05, t);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + duur);
+          o.connect(g);
+          g.connect(audioCtx.destination);
+          o.start(t);
+          o.stop(t + duur + 0.02);
+        } catch (e) {}
+      }
+      const GELUID = {
+        klik: () => toon(900, 0.025, 'square', 0, 0.015),
+        ok: () => toon(660, 0.08, 'square', 0, 0.05),
+        fout: () => toon(140, 0.28, 'sawtooth', 0, 0.07),
+        toegang: () =>
+          [523, 659, 784, 1047].forEach((f, i) => toon(f, 0.12, 'square', i * 0.09, 0.05)),
+        alarm: () => {
+          toon(440, 0.12, 'triangle', 0, 0.1);
+          toon(440, 0.12, 'triangle', 0.18, 0.1);
+        },
+        cover: () => [600, 450, 300].forEach((f, i) => toon(f, 0.16, 'sine', i * 0.1, 0.1)),
+        winst: () =>
+          [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) =>
+            toon(f, 0.16, 'square', i * 0.11, 0.05),
+          ),
+        verlies: () =>
+          [392, 330, 262, 196].forEach((f, i) => toon(f, 0.28, 'sawtooth', i * 0.2, 0.06)),
+      };
+
+      function zetGeluid(aan) {
+        geluidAan = aan;
+        try {
+          localStorage.setItem('sas_geluid', aan ? 'aan' : 'uit');
+        } catch (e) {}
+        btnSound.textContent = 'Geluid: ' + (aan ? 'aan' : 'uit');
+        btnSound.setAttribute('aria-pressed', String(aan));
+      }
+
+      /* ------------------------------ STATE ------------------------------ */
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const sleep = (ms) => new Promise((r) => setTimeout(r, reduceMotion ? 0 : ms));
+
+      let DOELEN = LEVELS[0].doelen;
+      let niveauIdx = 0;
+      let totaal = 0;
+      let scores = []; // beste score van de huidige run per level, zodat opnieuw spelen niet dubbel telt
+      let gescand,
+        doel,
+        gehackt,
+        trace,
+        bezig,
+        klaar,
+        gewonnen,
+        coverOver,
+        waarschuwd,
+        startTijd,
+        hintIdx,
+        tickTeller;
+      const geschiedenis = [];
+      let geschIdx = 0;
+
+      function laadHS() {
+        try {
+          return JSON.parse(localStorage.getItem('sas_hs') || '{}');
+        } catch (e) {
+          return {};
         }
       }
-    }
-  },
-  {
-    titel: 'Level 3: Zwarte Doos',
-    intro: 'Een luchtvaartinstituut houdt vluchtdata achter slot en grendel. Let op: niet alles is wat het lijkt.',
-    missie: { server: 'zwarte_doos_00', bestand: 'zwarte_doos.txt' },
-    tickSec: 4,
-    tijdStraf: 1,
-    hints: [
-      'De code van de zwarte doos staat verdeeld over twee servers, waarvan een beveiligd is.',
-      'Voor de beveiligde server heb je een plakbriefje nodig. Zoek bij de bewaking.',
-      'Cijfer 1-2 staat bij de satelliet, cijfer 3-4 in de data lake. De code is 7342.'
-    ],
-    doelen: {
-      relay_hub_01: {
-        naam: 'Relay_Hub_01',
-        wachtwoord: '123456',
-        bestanden: {
-          'verkeer.txt': 'Netwerkverkeer genormaliseerd. Twee servers bewaren elk een deel van de zwarte-doos-code.',
-          'servers.txt': 'Actief: guard_cam_03, sat_link_12, data_lake_08, finance_db_66, zwarte_doos_00.'
+      function bewaarHS(hs) {
+        try {
+          localStorage.setItem('sas_hs', JSON.stringify(hs));
+        } catch (e) {}
+      }
+      function renderChips() {
+        const chips = document.getElementById('chips');
+        chips.replaceChildren();
+        const maak = (tekst, cmd) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn btn-sm btn-outline-secondary quick-cmd';
+          b.textContent = tekst;
+          b.addEventListener('click', () => verstuur(cmd));
+          chips.appendChild(b);
+        };
+        const kop = (tekst) => {
+          const s = document.createElement('span');
+          s.className = 'small';
+          s.style.color = '#6f9a78';
+          s.textContent = tekst;
+          chips.appendChild(s);
+        };
+        if (klaar) return;
+        if (gescand) {
+          kop('Verbind:');
+          Object.keys(DOELEN).forEach((k) => maak(DOELEN[k].naam, 'connect ' + k));
         }
-      },
-      guard_cam_03: {
-        naam: 'Guard_Cam_03',
-        wachtwoord: 'qwerty',
-        bestanden: {
-          'bewaker.txt': 'Let op: finance_db_66 is een lokaas van de beveiliging. Niet aanraken!',
-          'plakbriefje.txt': 'Plakbriefje op monitor: data_lake_08 = 0451 (Fahrenheit 451, mijn favoriete boek).'
-        }
-      },
-      sat_link_12: {
-        naam: 'Sat_Link_12',
-        wachtwoord: 'wachtwoord',
-        bestanden: {
-          'telemetrie.txt': 'Zwarte-doos code: cijfer 1 en 2 zijn 73. De rest staat in de data lake.'
-        }
-      },
-      data_lake_08: {
-        naam: 'Data_Lake_08',
-        code: '0451',
-        bestanden: {
-          'index.txt': 'Zwarte-doos code: cijfer 3 is 4, cijfer 4 is 2. De eerste twee staan bij de satelliet.'
-        }
-      },
-      finance_db_66: {
-        naam: 'Finance_DB_66',
-        lokaas: true,
-        traceKosten: 30,
-        bestanden: {
-          'wachtwoorden.txt': 'Dit is een lokaas. Hier staat niets nuttigs.'
-        }
-      },
-      zwarte_doos_00: {
-        naam: 'Zwarte_Doos_00',
-        code: '7342',
-        bestanden: {
-          'vluchtdata.txt': 'Vlucht 1409: 14.211 meter, laatste contact 03:12.',
-          'zwarte_doos.txt': 'OPERATIE ZWARTE DOOS: de vlucht werd opzettelijk omgeleid. ALLE MISSIES VOLTOOID.'
+        if (doel && gehackt.has(doel)) {
+          kop('Lees:');
+          Object.keys(DOELEN[doel].bestanden).forEach((f) => maak(f, 'cat ' + f));
         }
       }
-    }
-  }
-];
 
-/* ------------------------------ GELUID ------------------------------ */
-let audioCtx = null;
-let geluidAan = true;
-try { geluidAan = localStorage.getItem('sas_geluid') !== 'uit'; } catch (e) {}
+      function toonScore() {
+        const hs = laadHS();
+        const delen = ['Totaal: ' + totaal];
+        if (gescand && !klaar && startTijd) {
+          const sec = Math.round((Date.now() - startTijd) / 1000);
+          delen.unshift(
+            'Dit level nu: ' +
+              Math.max(0, Math.round(1000 - trace * 8 - sec * LEVELS[niveauIdx].tijdStraf)),
+          );
+        }
+        if (hs[niveauIdx]) delen.push('Highscore L' + (niveauIdx + 1) + ': ' + hs[niveauIdx]);
+        if (hs.totaal) delen.push('Beste totaal: ' + hs.totaal);
+        scoreLabel.textContent = delen.join(' | ');
+      }
 
-function toon(freq, duur, type, start, vol) {
-  if (!geluidAan) return;
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const t = audioCtx.currentTime + (start || 0);
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.type = type || 'square';
-    o.frequency.setValueAtTime(freq, t);
-    g.gain.setValueAtTime(vol || 0.05, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + duur);
-    o.connect(g);
-    g.connect(audioCtx.destination);
-    o.start(t);
-    o.stop(t + duur + 0.02);
-  } catch (e) {}
-}
-const GELUID = {
-  klik:   () => toon(900, 0.025, 'square', 0, 0.015),
-  ok:     () => toon(660, 0.08, 'square', 0, 0.05),
-  fout:   () => toon(140, 0.28, 'sawtooth', 0, 0.07),
-  toegang: () => [523, 659, 784, 1047].forEach((f, i) => toon(f, 0.12, 'square', i * 0.09, 0.05)),
-  alarm:  () => { toon(440, 0.12, 'triangle', 0, 0.1); toon(440, 0.12, 'triangle', 0.18, 0.1); },
-  cover:  () => [600, 450, 300].forEach((f, i) => toon(f, 0.16, 'sine', i * 0.1, 0.1)),
-  winst:  () => [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => toon(f, 0.16, 'square', i * 0.11, 0.05)),
-  verlies: () => [392, 330, 262, 196].forEach((f, i) => toon(f, 0.28, 'sawtooth', i * 0.2, 0.06))
-};
+      function addLine(text, cls) {
+        const line = document.createElement('div');
+        if (cls) line.className = cls;
+        line.textContent = text;
+        screen.appendChild(line);
+        screen.scrollTop = screen.scrollHeight;
+        return line;
+      }
+      function fout(tekst) {
+        addLine(tekst, 'err');
+        GELUID.fout();
+      }
+      function waarsch(tekst) {
+        addLine(tekst, 'warn');
+      }
 
-function zetGeluid(aan) {
-  geluidAan = aan;
-  try { localStorage.setItem('sas_geluid', aan ? 'aan' : 'uit'); } catch (e) {}
-  btnSound.textContent = 'Geluid: ' + (aan ? 'aan' : 'uit');
-  btnSound.setAttribute('aria-pressed', String(aan));
-}
+      function updateMissie() {
+        const m = LEVELS[niveauIdx].missie;
+        missieLabel.textContent = '';
+        missieLabel.append('Missie: lees ');
+        const b = document.createElement('span');
+        b.className = 'text-success';
+        b.textContent = m.bestand;
+        missieLabel.append(b, ' op ' + DOELEN[m.server].naam + ' voordat de trace 100% haalt.');
+      }
 
-/* ------------------------------ STATE ------------------------------ */
-const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const sleep = ms => new Promise(r => setTimeout(r, reduceMotion ? 0 : ms));
+      function updateUI() {
+        const admin = doel && gehackt.has(doel);
+        badgeRol.textContent = admin ? 'Admin' : 'Gast';
+        badgeRol.className = 'badge ' + (admin ? 'text-bg-success' : 'text-bg-secondary');
+        badgeDoel.textContent = doel ? DOELEN[doel].naam : 'Geen doel';
+        badgeCover.textContent = 'Cover: ' + coverOver;
+        badgeLevel.textContent = 'Level ' + (niveauIdx + 1) + '/' + LEVELS.length;
+        traceBar.style.width = trace + '%';
+        traceBar.className =
+          'progress-bar ' + (trace < 50 ? 'bg-success' : trace < 80 ? 'bg-warning' : 'bg-danger');
+        traceLabel.textContent = trace + '%' + (gescand ? '' : ' (start bij je eerste scan)');
+        traceWrap.setAttribute('aria-valuenow', trace);
+        renderChips();
+        btnNext.classList.toggle('d-none', !(gewonnen && niveauIdx < LEVELS.length - 1));
+        toonScore();
+      }
 
-let DOELEN = LEVELS[0].doelen;
-let niveauIdx = 0;
-let totaal = 0;
-let scores = [];   // beste score van de huidige run per level, zodat opnieuw spelen niet dubbel telt
-let gescand, doel, gehackt, trace, bezig, klaar, gewonnen, coverOver, waarschuwd, startTijd, hintIdx, tickTeller;
-const geschiedenis = [];
-let geschIdx = 0;
+      function verhoogTrace(n) {
+        if (klaar) return;
+        trace = Math.min(100, trace + n);
+        updateUI();
+        if (trace >= 100) {
+          klaar = true;
+          GELUID.verlies();
+          addLine('!! TRACE VOLTOOID. Je verbinding is opgespoord. GAME OVER.', 'err');
+          addLine('Typ "restart" om dit level opnieuw te proberen.', 'dim');
+        } else if (trace >= 70 && !waarschuwd) {
+          waarschuwd = true;
+          GELUID.alarm();
+          addLine('Waarschuwing: de beveiliging wordt alert.', 'warn');
+        }
+      }
 
-function laadHS() {
-  try { return JSON.parse(localStorage.getItem('sas_hs') || '{}'); } catch (e) { return {}; }
-}
-function bewaarHS(hs) {
-  try { localStorage.setItem('sas_hs', JSON.stringify(hs)); } catch (e) {}
-}
-function renderChips() {
-  const chips = document.getElementById('chips');
-  chips.replaceChildren();
-  const maak = (tekst, cmd) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'btn btn-sm btn-outline-secondary quick-cmd';
-    b.textContent = tekst;
-    b.addEventListener('click', () => verstuur(cmd));
-    chips.appendChild(b);
-  };
-  const kop = tekst => {
-    const s = document.createElement('span');
-    s.className = 'small';
-    s.style.color = '#6f9a78';
-    s.textContent = tekst;
-    chips.appendChild(s);
-  };
-  if (klaar) return;
-  if (gescand) {
-    kop('Verbind:');
-    Object.keys(DOELEN).forEach(k => maak(DOELEN[k].naam, 'connect ' + k));
-  }
-  if (doel && gehackt.has(doel)) {
-    kop('Lees:');
-    Object.keys(DOELEN[doel].bestanden).forEach(f => maak(f, 'cat ' + f));
-  }
-}
+      function startLevel(idx) {
+        niveauIdx = idx;
+        const lv = LEVELS[idx];
+        DOELEN = lv.doelen;
+        screen.textContent = '';
+        gescand = false;
+        doel = null;
+        gehackt = new Set();
+        trace = 0;
+        bezig = false;
+        klaar = false;
+        gewonnen = false;
+        coverOver = MAX_COVER;
+        waarschuwd = false;
+        startTijd = null;
+        hintIdx = 0;
+        tickTeller = 0;
+        updateMissie();
+        updateUI();
+        addLine("Systeem gereed. Typ 'help' om te beginnen...", 'dim');
+        addLine(lv.titel, 'ok');
+        addLine(lv.intro, 'dim');
+      }
 
-function toonScore() {
-  const hs = laadHS();
-  const delen = ['Totaal: ' + totaal];
-  if (gescand && !klaar && startTijd) {
-    const sec = Math.round((Date.now() - startTijd) / 1000);
-    delen.unshift('Dit level nu: ' + Math.max(0, Math.round(1000 - trace * 8 - sec * LEVELS[niveauIdx].tijdStraf)));
-  }
-  if (hs[niveauIdx]) delen.push('Highscore L' + (niveauIdx + 1) + ': ' + hs[niveauIdx]);
-  if (hs.totaal) delen.push('Beste totaal: ' + hs.totaal);
-  scoreLabel.textContent = delen.join(' | ');
-}
+      /* ------------------------------ ACTIES ------------------------------ */
+      async function hack(code) {
+        if (!doel)
+          return waarsch('Geen doel gekozen. Gebruik eerst "scan" en dan "connect <naam>".');
+        const d = DOELEN[doel];
+        if (gehackt.has(doel)) return waarsch('Je hebt al admin-rechten op ' + d.naam + '.');
 
-function addLine(text, cls) {
-  const line = document.createElement('div');
-  if (cls) line.className = cls;
-  line.textContent = text;
-  screen.appendChild(line);
-  screen.scrollTop = screen.scrollHeight;
-  return line;
-}
-function fout(tekst) { addLine(tekst, 'err'); GELUID.fout(); }
-function waarsch(tekst) { addLine(tekst, 'warn'); }
+        if (d.wachtwoord) return wachtwoordAanval(d);
 
-function updateMissie() {
-  const m = LEVELS[niveauIdx].missie;
-  missieLabel.textContent = '';
-  missieLabel.append('Missie: lees ');
-  const b = document.createElement('span');
-  b.className = 'text-success';
-  b.textContent = m.bestand;
-  missieLabel.append(b, ' op ' + DOELEN[m.server].naam + ' voordat de trace 100% haalt.');
-}
+        if (d.code) {
+          if (!code) {
+            waarsch('Firewall niveau 3: een toegangscode is vereist.');
+            addLine(
+              'Gebruik: hack <4-cijferige code>. Misschien staan er aanwijzingen op andere servers...',
+              'dim',
+            );
+            return;
+          }
+          if (!/^\d{4}$/.test(code)) return fout('Een code bestaat uit precies 4 cijfers.');
+          if (code !== d.code) {
+            fout('[ACCESS DENIED] Onjuiste code.');
+            return verhoogTrace(15);
+          }
+        }
 
-function updateUI() {
-  const admin = doel && gehackt.has(doel);
-  badgeRol.textContent = admin ? 'Admin' : 'Gast';
-  badgeRol.className = 'badge ' + (admin ? 'text-bg-success' : 'text-bg-secondary');
-  badgeDoel.textContent = doel ? DOELEN[doel].naam : 'Geen doel';
-  badgeCover.textContent = 'Cover: ' + coverOver;
-  badgeLevel.textContent = 'Level ' + (niveauIdx + 1) + '/' + LEVELS.length;
-  traceBar.style.width = trace + '%';
-  traceBar.className = 'progress-bar ' + (trace < 50 ? 'bg-success' : trace < 80 ? 'bg-warning' : 'bg-danger');
-  traceLabel.textContent = trace + '%' + (gescand ? '' : ' (start bij je eerste scan)');
-  traceWrap.setAttribute('aria-valuenow', trace);
-  renderChips();
-  btnNext.classList.toggle('d-none', !(gewonnen && niveauIdx < LEVELS.length - 1));
-  toonScore();
-}
+        bezig = true;
+        addLine('Bypassing firewall van ' + d.naam + '...', 'ok');
+        GELUID.ok();
+        const bar = document.createElement('div');
+        bar.className = 'progress my-1';
+        bar.innerHTML =
+          '<div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width:0%"></div>';
+        screen.appendChild(bar);
+        const fill = bar.firstElementChild;
+        for (const p of [20, 50, 80, 100]) {
+          await sleep(450);
+          fill.style.width = p + '%';
+          GELUID.klik();
+          screen.scrollTop = screen.scrollHeight;
+        }
+        gehackt.add(doel);
 
-function verhoogTrace(n) {
-  if (klaar) return;
-  trace = Math.min(100, trace + n);
-  updateUI();
-  if (trace >= 100) {
-    klaar = true;
-    GELUID.verlies();
-    addLine('!! TRACE VOLTOOID. Je verbinding is opgespoord. GAME OVER.', 'err');
-    addLine('Typ "restart" om dit level opnieuw te proberen.', 'dim');
-  } else if (trace >= 70 && !waarschuwd) {
-    waarschuwd = true;
-    GELUID.alarm();
-    addLine('Waarschuwing: de beveiliging wordt alert.', 'warn');
-  }
-}
+        if (d.lokaas) {
+          addLine('!! LOKAAS GEACTIVEERD. ' + d.naam + ' was een val van de beveiliging.', 'err');
+          GELUID.fout();
+          bezig = false;
+          return verhoogTrace(d.traceKosten || 30);
+        }
 
-function startLevel(idx) {
-  niveauIdx = idx;
-  const lv = LEVELS[idx];
-  DOELEN = lv.doelen;
-  screen.textContent = '';
-  gescand = false; doel = null; gehackt = new Set(); trace = 0;
-  bezig = false; klaar = false; gewonnen = false; coverOver = MAX_COVER;
-  waarschuwd = false; startTijd = null; hintIdx = 0; tickTeller = 0;
-  updateMissie();
-  updateUI();
-  addLine("Systeem gereed. Typ 'help' om te beginnen...", 'dim');
-  addLine(lv.titel, 'ok');
-  addLine(lv.intro, 'dim');
-}
+        addLine('[ACCESS GRANTED] Je bent nu admin op ' + d.naam + '. Probeer "ls".', 'ok');
+        GELUID.toegang();
+        bezig = false;
+        verhoogTrace(d.traceKosten != null ? d.traceKosten : d.code ? 10 : 15);
+      }
 
-/* ------------------------------ ACTIES ------------------------------ */
-async function hack(code) {
-  if (!doel) return waarsch('Geen doel gekozen. Gebruik eerst "scan" en dan "connect <naam>".');
-  const d = DOELEN[doel];
-  if (gehackt.has(doel)) return waarsch('Je hebt al admin-rechten op ' + d.naam + '.');
+      async function wachtwoordAanval(d) {
+        bezig = true;
+        addLine(
+          'Woordenlijst-aanval op ' + d.naam + ' (' + WOORDENLIJST.length + ' wachtwoorden)...',
+          'ok',
+        );
+        let gevonden = false;
+        for (const woord of WOORDENLIJST) {
+          await sleep(300);
+          const goed = woord === d.wachtwoord;
+          addLine(
+            '  probeer: ' + woord + ' ... ' + (goed ? 'GELUKT' : 'mislukt'),
+            goed ? 'ok' : 'err',
+          );
+          if (goed) GELUID.ok();
+          else GELUID.klik();
+          verhoogTrace(POGING_TRACE);
+          if (klaar) {
+            bezig = false;
+            return;
+          }
+          if (goed) {
+            gevonden = true;
+            break;
+          }
+        }
+        bezig = false;
+        if (gevonden) {
+          gehackt.add(doel);
+          updateUI();
+          addLine('[ACCESS GRANTED] Je bent nu admin op ' + d.naam + '. Probeer "ls".', 'ok');
+          GELUID.toegang();
+        } else {
+          fout('Woordenlijst uitgeput. Dit is een sterk wachtwoord.');
+          waarsch('Zoek hints op andere servers en gebruik dan "login <wachtwoord>".');
+        }
+      }
 
-  if (d.wachtwoord) return wachtwoordAanval(d);
+      function login(w) {
+        if (!doel) return waarsch('Geen doel gekozen. Gebruik eerst "connect <naam>".');
+        const d = DOELEN[doel];
+        if (gehackt.has(doel)) return waarsch('Je bent al admin op ' + d.naam + '.');
+        if (!d.wachtwoord) {
+          return waarsch(
+            d.code
+              ? 'Deze server gebruikt een 4-cijferige code. Gebruik hack <code>.'
+              : 'Deze server vraagt geen wachtwoord. Gebruik hack.',
+          );
+        }
+        if (!w) return waarsch('Gebruik: login <wachtwoord>');
+        if (w !== d.wachtwoord) {
+          fout('[ACCESS DENIED] Wachtwoord onjuist.');
+          return verhoogTrace(LOGIN_TRACE);
+        }
+        gehackt.add(doel);
+        updateUI();
+        addLine('[ACCESS GRANTED] Je bent nu admin op ' + d.naam + '. Probeer "ls".', 'ok');
+        GELUID.toegang();
+      }
 
-  if (d.code) {
-    if (!code) {
-      waarsch('Firewall niveau 3: een toegangscode is vereist.');
-      addLine('Gebruik: hack <4-cijferige code>. Misschien staan er aanwijzingen op andere servers...', 'dim');
-      return;
-    }
-    if (!/^\d{4}$/.test(code)) return fout('Een code bestaat uit precies 4 cijfers.');
-    if (code !== d.code) {
-      fout('[ACCESS DENIED] Onjuiste code.');
-      return verhoogTrace(15);
-    }
-  }
+      function wint() {
+        klaar = true;
+        gewonnen = true;
+        const lv = LEVELS[niveauIdx];
+        const seconden = Math.round((Date.now() - startTijd) / 1000);
+        const score = Math.max(0, Math.round(1000 - trace * 8 - seconden * lv.tijdStraf));
+        scores[niveauIdx] = score;
+        totaal = scores.reduce((a, b) => a + (b || 0), 0);
+        GELUID.winst();
+        addLine(
+          '*** LEVEL GEHAALD! Trace: ' +
+            trace +
+            '%, tijd: ' +
+            seconden +
+            's. Score: ' +
+            score +
+            ' ***',
+          'ok',
+        );
 
-  bezig = true;
-  addLine('Bypassing firewall van ' + d.naam + '...', 'ok');
-  GELUID.ok();
-  const bar = document.createElement('div');
-  bar.className = 'progress my-1';
-  bar.innerHTML = '<div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width:0%"></div>';
-  screen.appendChild(bar);
-  const fill = bar.firstElementChild;
-  for (const p of [20, 50, 80, 100]) {
-    await sleep(450);
-    fill.style.width = p + '%';
-    GELUID.klik();
-    screen.scrollTop = screen.scrollHeight;
-  }
-  gehackt.add(doel);
+        const hs = laadHS();
+        if (score > (hs[niveauIdx] || 0)) {
+          hs[niveauIdx] = score;
+          addLine('Nieuwe highscore voor dit level!', 'warn');
+        }
 
-  if (d.lokaas) {
-    addLine('!! LOKAAS GEACTIVEERD. ' + d.naam + ' was een val van de beveiliging.', 'err');
-    GELUID.fout();
-    bezig = false;
-    return verhoogTrace(d.traceKosten || 30);
-  }
+        if (niveauIdx < LEVELS.length - 1) {
+          addLine(
+            'Typ "next" voor het volgende level, of "restart" om dit level over te doen.',
+            'dim',
+          );
+        } else {
+          addLine('=== ALLE LEVELS VOLTOOID! Totaalscore: ' + totaal + ' ===', 'ok');
+          if (totaal > (hs.totaal || 0)) {
+            hs.totaal = totaal;
+            addLine('Nieuw record voor de hele campagne!', 'warn');
+          }
+          addLine('Typ "restart" om de campagne opnieuw te spelen.', 'dim');
+        }
+        bewaarHS(hs);
+        updateUI();
+      }
 
-  addLine('[ACCESS GRANTED] Je bent nu admin op ' + d.naam + '. Probeer "ls".', 'ok');
-  GELUID.toegang();
-  bezig = false;
-  verhoogTrace(d.traceKosten != null ? d.traceKosten : (d.code ? 10 : 15));
-}
+      function herstart() {
+        if (gewonnen && niveauIdx === LEVELS.length - 1) {
+          scores = [];
+          totaal = 0;
+          startLevel(0);
+        } else {
+          startLevel(niveauIdx);
+        }
+      }
 
-async function wachtwoordAanval(d) {
-  bezig = true;
-  addLine('Woordenlijst-aanval op ' + d.naam + ' (' + WOORDENLIJST.length + ' wachtwoorden)...', 'ok');
-  let gevonden = false;
-  for (const woord of WOORDENLIJST) {
-    await sleep(300);
-    const goed = woord === d.wachtwoord;
-    addLine('  probeer: ' + woord + ' ... ' + (goed ? 'GELUKT' : 'mislukt'), goed ? 'ok' : 'err');
-    if (goed) GELUID.ok(); else GELUID.klik();
-    verhoogTrace(POGING_TRACE);
-    if (klaar) { bezig = false; return; }
-    if (goed) { gevonden = true; break; }
-  }
-  bezig = false;
-  if (gevonden) {
-    gehackt.add(doel);
-    updateUI();
-    addLine('[ACCESS GRANTED] Je bent nu admin op ' + d.naam + '. Probeer "ls".', 'ok');
-    GELUID.toegang();
-  } else {
-    fout('Woordenlijst uitgeput. Dit is een sterk wachtwoord.');
-    waarsch('Zoek hints op andere servers en gebruik dan "login <wachtwoord>".');
-  }
-}
+      async function run(raw) {
+        const delen = raw.trim().toLowerCase().split(/\s+/);
+        const cmd = delen[0];
+        const arg = delen[1];
+        if (!cmd) return;
+        if (cmd === 'clear') {
+          screen.textContent = '';
+          return;
+        }
+        if (cmd === 'sound') {
+          zetGeluid(!geluidAan);
+          GELUID.ok();
+          return addLine('Geluid ' + (geluidAan ? 'aan.' : 'uit.'), 'dim');
+        }
+        if (cmd === 'matrix') {
+          addLine('> ' + raw.trim().toLowerCase(), 'cmd');
+          if (arg === 'rood' || arg === 'groen') {
+            zetRegenKleur(arg);
+            zetRegen(true);
+            return addLine('Regen: ' + arg + '.', 'dim');
+          }
+          if (arg === 'aan' || arg === 'uit') {
+            zetRegen(arg === 'aan');
+            return addLine('Regen ' + arg + '.', 'dim');
+          }
+          zetRegen(!REGEN.aan);
+          return addLine(
+            'Regen ' +
+              (REGEN.aan ? 'aan' : 'uit') +
+              '. (matrix rood, matrix groen, matrix aan, matrix uit)',
+            'dim',
+          );
+        }
+        addLine('> ' + raw.trim().toLowerCase(), 'cmd');
 
-function login(w) {
-  if (!doel) return waarsch('Geen doel gekozen. Gebruik eerst "connect <naam>".');
-  const d = DOELEN[doel];
-  if (gehackt.has(doel)) return waarsch('Je bent al admin op ' + d.naam + '.');
-  if (!d.wachtwoord) {
-    return waarsch(d.code ? 'Deze server gebruikt een 4-cijferige code. Gebruik hack <code>.' : 'Deze server vraagt geen wachtwoord. Gebruik hack.');
-  }
-  if (!w) return waarsch('Gebruik: login <wachtwoord>');
-  if (w !== d.wachtwoord) {
-    fout('[ACCESS DENIED] Wachtwoord onjuist.');
-    return verhoogTrace(LOGIN_TRACE);
-  }
-  gehackt.add(doel);
-  updateUI();
-  addLine('[ACCESS GRANTED] Je bent nu admin op ' + d.naam + '. Probeer "ls".', 'ok');
-  GELUID.toegang();
-}
+        if (klaar) {
+          if (cmd === 'restart') return herstart();
+          if (cmd === 'next' && gewonnen && niveauIdx < LEVELS.length - 1)
+            return startLevel(niveauIdx + 1);
+          return waarsch(
+            gewonnen
+              ? 'Level gehaald. Typ "next" of "restart".'
+              : 'Het spel is afgelopen. Typ "restart".',
+          );
+        }
 
-function wint() {
-  klaar = true;
-  gewonnen = true;
-  const lv = LEVELS[niveauIdx];
-  const seconden = Math.round((Date.now() - startTijd) / 1000);
-  const score = Math.max(0, Math.round(1000 - trace * 8 - seconden * lv.tijdStraf));
-  scores[niveauIdx] = score;
-  totaal = scores.reduce((a, b) => a + (b || 0), 0);
-  GELUID.winst();
-  addLine('*** LEVEL GEHAALD! Trace: ' + trace + '%, tijd: ' + seconden + 's. Score: ' + score + ' ***', 'ok');
+        switch (cmd) {
+          case 'help':
+            addLine(
+              "Commando's: help, scan, connect <naam>, hack [code], login <wachtwoord>, ls, cat <bestand>, cover, hint, status, sound, matrix, clear, restart",
+              'ok',
+            );
+            addLine('Regen: matrix, matrix aan, matrix uit, matrix rood, matrix groen.', 'dim');
+            addLine(
+              'Tip: lees bestanden op elke server. Je hebt ze nodig. Tab vult namen aan.',
+              'dim',
+            );
+            break;
+          case 'scan':
+            if (!gescand) startTijd = Date.now();
+            gescand = true;
+            GELUID.ok();
+            addLine('Scanning...', 'ok');
+            Object.values(DOELEN).forEach((d) =>
+              addLine(
+                '  [Found: ' +
+                  d.naam +
+                  ']' +
+                  (d.code ? ' (beveiligd)' : d.wachtwoord ? ' (wachtwoord)' : ''),
+                'ok',
+              ),
+            );
+            addLine('Kies een doel met "connect <naam>".', 'dim');
+            verhoogTrace(5);
+            break;
+          case 'connect': {
+            if (!gescand) return waarsch('Voer eerst "scan" uit.');
+            const sleutel = Object.keys(DOELEN).find((k) => k === arg);
+            if (!sleutel)
+              return fout(
+                'Doel niet gevonden. Typ de volledige naam, bijv. connect ' +
+                  Object.keys(DOELEN)[0],
+              );
+            doel = sleutel;
+            GELUID.ok();
+            updateUI();
+            addLine(
+              'Verbonden met ' +
+                DOELEN[sleutel].naam +
+                '. Rol: ' +
+                (gehackt.has(sleutel) ? 'Admin' : 'Gast') +
+                '.',
+              'ok',
+            );
+            break;
+          }
+          case 'hack':
+            await hack(arg);
+            break;
+          case 'login':
+            login(arg);
+            break;
+          case 'ls':
+            if (!doel || !gehackt.has(doel)) return fout('Geen toegang. Hack eerst een doel.');
+            GELUID.ok();
+            Object.keys(DOELEN[doel].bestanden).forEach((f) => addLine('  ' + f, 'ok'));
+            break;
+          case 'cat': {
+            if (!doel || !gehackt.has(doel)) return fout('Geen toegang. Hack eerst een doel.');
+            const inhoud = DOELEN[doel].bestanden[arg];
+            if (!inhoud) return fout('Bestand niet gevonden.');
+            GELUID.ok();
+            const m = LEVELS[niveauIdx].missie;
+            const isDoel = doel === m.server && arg === m.bestand;
+            addLine(inhoud, isDoel ? 'warn' : 'ok');
+            if (isDoel) wint();
+            break;
+          }
+          case 'cover':
+            if (coverOver <= 0) return fout('Geen cover-acties meer over.');
+            if (trace === 0) return waarsch('Er is niets om te wissen.');
+            coverOver--;
+            trace = Math.max(0, trace - 20);
+            if (trace < 70) waarschuwd = false;
+            GELUID.cover();
+            updateUI();
+            addLine(
+              'Logs gewist en route verlegd. Trace -20%. Cover-acties over: ' + coverOver + '.',
+              'ok',
+            );
+            break;
+          case 'hint': {
+            const hints = LEVELS[niveauIdx].hints;
+            if (hintIdx >= hints.length) return waarsch('Geen hints meer voor dit level.');
+            GELUID.ok();
+            addLine('HINT ' + (hintIdx + 1) + '/' + hints.length + ': ' + hints[hintIdx], 'warn');
+            hintIdx++;
+            addLine('(Hint kost 5% trace.)', 'dim');
+            verhoogTrace(5);
+            break;
+          }
+          case 'status':
+            GELUID.ok();
+            addLine(
+              'Systeem status: Online. Level: ' +
+                (niveauIdx + 1) +
+                '. Bevoegdheid: ' +
+                (doel && gehackt.has(doel) ? 'Admin' : 'Gast') +
+                '. Doel: ' +
+                (doel ? DOELEN[doel].naam : 'geen') +
+                '. Trace: ' +
+                trace +
+                '%. Cover: ' +
+                coverOver +
+                '.',
+              'ok',
+            );
+            break;
+          case 'restart':
+            herstart();
+            break;
+          case 'next':
+            waarsch('Haal eerst dit level.');
+            break;
+          default:
+            fout('Onbekend commando. Typ "help".');
+        }
+      }
 
-  const hs = laadHS();
-  if (score > (hs[niveauIdx] || 0)) {
-    hs[niveauIdx] = score;
-    addLine('Nieuwe highscore voor dit level!', 'warn');
-  }
+      async function verstuur(tekst) {
+        if (bezig) return;
+        if (tekst.trim()) {
+          geschiedenis.push(tekst);
+          geschIdx = geschiedenis.length;
+        }
+        await run(tekst);
+        input.focus();
+      }
 
-  if (niveauIdx < LEVELS.length - 1) {
-    addLine('Typ "next" voor het volgende level, of "restart" om dit level over te doen.', 'dim');
-  } else {
-    addLine('=== ALLE LEVELS VOLTOOID! Totaalscore: ' + totaal + ' ===', 'ok');
-    if (totaal > (hs.totaal || 0)) {
-      hs.totaal = totaal;
-      addLine('Nieuw record voor de hele campagne!', 'warn');
-    }
-    addLine('Typ "restart" om de campagne opnieuw te spelen.', 'dim');
-  }
-  bewaarHS(hs);
-  updateUI();
-}
+      /* ------------------------------ INPUT ------------------------------ */
+      function vulAan() {
+        const v = input.value.toLowerCase();
+        const m = v.match(/^(connect|cat)\s+(\S*)$/);
+        let opties = [],
+          prefix = '',
+          deel = v;
+        if (m) {
+          prefix = m[1] + ' ';
+          deel = m[2];
+          opties =
+            m[1] === 'connect'
+              ? Object.keys(DOELEN)
+              : doel && gehackt.has(doel)
+                ? Object.keys(DOELEN[doel].bestanden)
+                : [];
+        } else if (/^\S*$/.test(v)) {
+          opties = COMMANDS;
+        }
+        const treffers = opties.filter((o) => o.startsWith(deel));
+        if (treffers.length === 1) {
+          input.value = prefix + treffers[0];
+        } else if (treffers.length > 1) {
+          addLine(treffers.join('  '), 'dim');
+        }
+      }
 
-function herstart() {
-  if (gewonnen && niveauIdx === LEVELS.length - 1) {
-    scores = [];
-    totaal = 0;
-    startLevel(0);
-  } else {
-    startLevel(niveauIdx);
-  }
-}
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          if (bezig) return; // tijdens een animatie niet stilletjes je commando wissen
+          const waarde = input.value;
+          input.value = '';
+          verstuur(waarde);
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          vulAan();
+        } else if (e.key === 'ArrowUp' && geschiedenis.length) {
+          e.preventDefault();
+          geschIdx = Math.max(0, geschIdx - 1);
+          input.value = geschiedenis[geschIdx];
+        } else if (e.key === 'ArrowDown' && geschiedenis.length) {
+          e.preventDefault();
+          geschIdx = Math.min(geschiedenis.length, geschIdx + 1);
+          input.value = geschiedenis[geschIdx] || '';
+        } else if (e.key.length === 1) {
+          GELUID.klik();
+        }
+      });
 
-async function run(raw) {
-  const delen = raw.trim().toLowerCase().split(/\s+/);
-  const cmd = delen[0];
-  const arg = delen[1];
-  if (!cmd) return;
-  if (cmd === 'clear') { screen.textContent = ''; return; }
-  if (cmd === 'sound') { zetGeluid(!geluidAan); GELUID.ok(); return addLine('Geluid ' + (geluidAan ? 'aan.' : 'uit.'), 'dim'); }
-  if (cmd === 'matrix') {
-    addLine('> ' + raw.trim().toLowerCase(), 'cmd');
-    if (arg === 'rood' || arg === 'groen') { zetRegenKleur(arg); zetRegen(true); return addLine('Regen: ' + arg + '.', 'dim'); }
-    if (arg === 'aan' || arg === 'uit') { zetRegen(arg === 'aan'); return addLine('Regen ' + arg + '.', 'dim'); }
-    zetRegen(!REGEN.aan);
-    return addLine('Regen ' + (REGEN.aan ? 'aan' : 'uit') + '. (matrix rood, matrix groen, matrix aan, matrix uit)', 'dim');
-  }
-  addLine('> ' + raw.trim().toLowerCase(), 'cmd');
+      document.getElementById('quick-buttons').addEventListener('click', function (e) {
+        const knop = e.target.closest('[data-cmd]');
+        if (knop) verstuur(knop.dataset.cmd);
+      });
 
-  if (klaar) {
-    if (cmd === 'restart') return herstart();
-    if (cmd === 'next' && gewonnen && niveauIdx < LEVELS.length - 1) return startLevel(niveauIdx + 1);
-    return waarsch(gewonnen
-      ? 'Level gehaald. Typ "next" of "restart".'
-      : 'Het spel is afgelopen. Typ "restart".');
-  }
+      btnSound.addEventListener('click', function () {
+        zetGeluid(!geluidAan);
+        GELUID.ok();
+        input.focus();
+      });
 
-  switch (cmd) {
-    case 'help':
-      addLine("Commando's: help, scan, connect <naam>, hack [code], login <wachtwoord>, ls, cat <bestand>, cover, hint, status, sound, matrix, clear, restart", 'ok');
-      addLine('Regen: matrix, matrix aan, matrix uit, matrix rood, matrix groen.', 'dim');
-      addLine('Tip: lees bestanden op elke server. Je hebt ze nodig. Tab vult namen aan.', 'dim');
-      break;
-    case 'scan':
-      if (!gescand) startTijd = Date.now();
-      gescand = true;
-      GELUID.ok();
-      addLine('Scanning...', 'ok');
-      Object.values(DOELEN).forEach(d => addLine('  [Found: ' + d.naam + ']' + (d.code ? ' (beveiligd)' : d.wachtwoord ? ' (wachtwoord)' : ''), 'ok'));
-      addLine('Kies een doel met "connect <naam>".', 'dim');
-      verhoogTrace(5);
-      break;
-    case 'connect': {
-      if (!gescand) return waarsch('Voer eerst "scan" uit.');
-      const sleutel = Object.keys(DOELEN).find(k => k === arg);
-      if (!sleutel) return fout('Doel niet gevonden. Typ de volledige naam, bijv. connect ' + Object.keys(DOELEN)[0]);
-      doel = sleutel;
-      GELUID.ok();
-      updateUI();
-      addLine('Verbonden met ' + DOELEN[sleutel].naam + '. Rol: ' + (gehackt.has(sleutel) ? 'Admin' : 'Gast') + '.', 'ok');
-      break;
-    }
-    case 'hack':
-      await hack(arg);
-      break;
-    case 'login':
-      login(arg);
-      break;
-    case 'ls':
-      if (!doel || !gehackt.has(doel)) return fout('Geen toegang. Hack eerst een doel.');
-      GELUID.ok();
-      Object.keys(DOELEN[doel].bestanden).forEach(f => addLine('  ' + f, 'ok'));
-      break;
-    case 'cat': {
-      if (!doel || !gehackt.has(doel)) return fout('Geen toegang. Hack eerst een doel.');
-      const inhoud = DOELEN[doel].bestanden[arg];
-      if (!inhoud) return fout('Bestand niet gevonden.');
-      GELUID.ok();
-      const m = LEVELS[niveauIdx].missie;
-      const isDoel = doel === m.server && arg === m.bestand;
-      addLine(inhoud, isDoel ? 'warn' : 'ok');
-      if (isDoel) wint();
-      break;
-    }
-    case 'cover':
-      if (coverOver <= 0) return fout('Geen cover-acties meer over.');
-      if (trace === 0) return waarsch('Er is niets om te wissen.');
-      coverOver--;
-      trace = Math.max(0, trace - 20);
-      if (trace < 70) waarschuwd = false;
-      GELUID.cover();
-      updateUI();
-      addLine('Logs gewist en route verlegd. Trace -20%. Cover-acties over: ' + coverOver + '.', 'ok');
-      break;
-    case 'hint': {
-      const hints = LEVELS[niveauIdx].hints;
-      if (hintIdx >= hints.length) return waarsch('Geen hints meer voor dit level.');
-      GELUID.ok();
-      addLine('HINT ' + (hintIdx + 1) + '/' + hints.length + ': ' + hints[hintIdx], 'warn');
-      hintIdx++;
-      addLine('(Hint kost 5% trace.)', 'dim');
-      verhoogTrace(5);
-      break;
-    }
-    case 'status':
-      GELUID.ok();
-      addLine('Systeem status: Online. Level: ' + (niveauIdx + 1) + '. Bevoegdheid: ' + (doel && gehackt.has(doel) ? 'Admin' : 'Gast') +
-              '. Doel: ' + (doel ? DOELEN[doel].naam : 'geen') + '. Trace: ' + trace + '%. Cover: ' + coverOver + '.', 'ok');
-      break;
-    case 'restart':
-      herstart();
-      break;
-    case 'next':
-      waarsch('Haal eerst dit level.');
-      break;
-    default:
-      fout('Onbekend commando. Typ "help".');
-  }
-}
+      // De trace loopt vanzelf op zodra je bent begonnen met scannen; sneller in latere levels
+      setInterval(function () {
+        if (!gescand || klaar || bezig || document.hidden) return;
+        toonScore();
+        tickTeller++;
+        if (tickTeller >= LEVELS[niveauIdx].tickSec) {
+          tickTeller = 0;
+          verhoogTrace(1);
+        }
+      }, 1000);
 
-async function verstuur(tekst) {
-  if (bezig) return;
-  if (tekst.trim()) { geschiedenis.push(tekst); geschIdx = geschiedenis.length; }
-  await run(tekst);
-  input.focus();
-}
+      // ----- Matrix-regen op de achtergrond (zelfde idee als mijn C-programma) -----
+      // Elke kolom heeft een druppel: een gele kop, een gekleurde staart en een wisser aan het einde.
+      const regenCanvas = document.getElementById('matrix-regen');
+      const btnRegen = document.getElementById('btn-matrix');
+      const regenCtx = regenCanvas.getContext('2d');
+      const REGEN_KLEUREN = { rood: '#ff4d4d', groen: '#3dff7a' };
+      const REGEN = { aan: true, kleur: 'rood' };
+      const TEKEN_H = 16,
+        TEKEN_B = 12,
+        STAP_MS = 100;
+      let regenKop = [],
+        regenLengte = [],
+        regenKolommen = 0,
+        regenRijen = 0,
+        regenLaatste = 0,
+        regenRaf = 0,
+        regenTimer = 0;
 
-/* ------------------------------ INPUT ------------------------------ */
-function vulAan() {
-  const v = input.value.toLowerCase();
-  const m = v.match(/^(connect|cat)\s+(\S*)$/);
-  let opties = [], prefix = '', deel = v;
-  if (m) {
-    prefix = m[1] + ' ';
-    deel = m[2];
-    opties = m[1] === 'connect'
-      ? Object.keys(DOELEN)
-      : (doel && gehackt.has(doel) ? Object.keys(DOELEN[doel].bestanden) : []);
-  } else if (/^\S*$/.test(v)) {
-    opties = COMMANDS;
-  }
-  const treffers = opties.filter(o => o.startsWith(deel));
-  if (treffers.length === 1) {
-    input.value = prefix + treffers[0];
-  } else if (treffers.length > 1) {
-    addLine(treffers.join('  '), 'dim');
-  }
-}
+      try {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) REGEN.aan = false;
+      } catch (e) {
+        /* niet erg */
+      }
+      try {
+        const o = JSON.parse(localStorage.getItem('regen') || 'null');
+        if (o) {
+          REGEN.aan = !!o.aan;
+          if (REGEN_KLEUREN[o.kleur]) REGEN.kleur = o.kleur;
+        }
+      } catch (e) {
+        /* niet erg */
+      }
+      function bewaarRegen() {
+        try {
+          localStorage.setItem('regen', JSON.stringify(REGEN));
+        } catch (e) {
+          /* niet erg */
+        }
+      }
 
-input.addEventListener('keydown', function (e) {
-  if (e.key === 'Enter') {
-    if (bezig) return;   // tijdens een animatie niet stilletjes je commando wissen
-    const waarde = input.value;
-    input.value = '';
-    verstuur(waarde);
-  } else if (e.key === 'Tab') {
-    e.preventDefault();
-    vulAan();
-  } else if (e.key === 'ArrowUp' && geschiedenis.length) {
-    e.preventDefault();
-    geschIdx = Math.max(0, geschIdx - 1);
-    input.value = geschiedenis[geschIdx];
-  } else if (e.key === 'ArrowDown' && geschiedenis.length) {
-    e.preventDefault();
-    geschIdx = Math.min(geschiedenis.length, geschIdx + 1);
-    input.value = geschiedenis[geschIdx] || '';
-  } else if (e.key.length === 1) {
-    GELUID.klik();
-  }
-});
+      function regenTeken() {
+        return String.fromCharCode(33 + Math.floor(Math.random() * 94));
+      } // ! t/m ~
+      function regenNieuweDdruppel(k, spreiding) {
+        regenKop[k] = -Math.floor(Math.random() * spreiding);
+        regenLengte[k] = 4 + Math.floor(Math.random() * regenRijen);
+      }
+      function regenInrichten() {
+        const dpr = window.devicePixelRatio || 1;
+        const b = window.innerWidth,
+          h = window.innerHeight;
+        regenCanvas.width = Math.round(b * dpr);
+        regenCanvas.height = Math.round(h * dpr);
+        regenCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        regenCtx.font = TEKEN_H + 'px "Courier New", monospace';
+        regenCtx.textBaseline = 'top';
+        regenKolommen = Math.ceil(b / TEKEN_B);
+        regenRijen = Math.max(1, Math.ceil(h / TEKEN_H));
+        regenKop = [];
+        regenLengte = [];
+        for (let k = 0; k < regenKolommen; k++) regenNieuweDdruppel(k, regenRijen * 2);
+      }
+      function regenCel(k, rij, kleur) {
+        regenCtx.clearRect(k * TEKEN_B, (rij - 1) * TEKEN_H, TEKEN_B, TEKEN_H);
+        if (kleur) {
+          regenCtx.fillStyle = kleur;
+          regenCtx.fillText(regenTeken(), k * TEKEN_B + 1, (rij - 1) * TEKEN_H);
+        }
+      }
+      function regenStap() {
+        for (let k = 0; k < regenKolommen; k++) {
+          const rij = regenKop[k];
+          const staart = rij - regenLengte[k];
+          if (rij >= 1 && rij <= regenRijen) regenCel(k, rij, '#ffd34d'); // kop: geel
+          if (rij - 1 >= 1 && rij - 1 <= regenRijen)
+            regenCel(k, rij - 1, REGEN_KLEUREN[REGEN.kleur]); // erboven: staartkleur
+          if (staart >= 1 && staart <= regenRijen) regenCel(k, staart, null); // einde: wissen
+          regenKop[k]++;
+          if (staart > regenRijen) regenNieuweDdruppel(k, regenRijen);
+        }
+      }
+      function regenLus(t) {
+        regenRaf = requestAnimationFrame(regenLus);
+        if (t - regenLaatste >= STAP_MS) {
+          regenLaatste = t;
+          regenStap();
+        }
+      }
+      function zetRegen(aan) {
+        REGEN.aan = aan;
+        cancelAnimationFrame(regenRaf);
+        regenCanvas.hidden = !aan;
+        if (aan) {
+          regenInrichten();
+          regenRaf = requestAnimationFrame(regenLus);
+        } else regenCtx.clearRect(0, 0, regenCanvas.width, regenCanvas.height);
+        btnRegen.textContent = 'Regen: ' + (aan ? 'aan' : 'uit');
+        btnRegen.setAttribute('aria-pressed', String(aan));
+        bewaarRegen();
+      }
+      function zetRegenKleur(kleur) {
+        REGEN.kleur = kleur;
+        bewaarRegen();
+      }
+      btnRegen.addEventListener('click', () => zetRegen(!REGEN.aan));
+      window.addEventListener('resize', () => {
+        clearTimeout(regenTimer);
+        regenTimer = setTimeout(() => {
+          if (REGEN.aan) regenInrichten();
+        }, 200);
+      });
 
-document.getElementById('quick-buttons').addEventListener('click', function (e) {
-  const knop = e.target.closest('[data-cmd]');
-  if (knop) verstuur(knop.dataset.cmd);
-});
-
-btnSound.addEventListener('click', function () {
-  zetGeluid(!geluidAan);
-  GELUID.ok();
-  input.focus();
-});
-
-// De trace loopt vanzelf op zodra je bent begonnen met scannen; sneller in latere levels
-setInterval(function () {
-  if (!gescand || klaar || bezig || document.hidden) return;
-  toonScore();
-  tickTeller++;
-  if (tickTeller >= LEVELS[niveauIdx].tickSec) {
-    tickTeller = 0;
-    verhoogTrace(1);
-  }
-}, 1000);
-
-// ----- Matrix-regen op de achtergrond (zelfde idee als mijn C-programma) -----
-// Elke kolom heeft een druppel: een gele kop, een gekleurde staart en een wisser aan het einde.
-const regenCanvas = document.getElementById('matrix-regen');
-const btnRegen = document.getElementById('btn-matrix');
-const regenCtx = regenCanvas.getContext('2d');
-const REGEN_KLEUREN = { rood: '#ff4d4d', groen: '#3dff7a' };
-const REGEN = { aan: true, kleur: 'rood' };
-const TEKEN_H = 16, TEKEN_B = 12, STAP_MS = 100;
-let regenKop = [], regenLengte = [], regenKolommen = 0, regenRijen = 0, regenLaatste = 0, regenRaf = 0, regenTimer = 0;
-
-try { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) REGEN.aan = false; } catch (e) { /* niet erg */ }
-try {
-  const o = JSON.parse(localStorage.getItem('regen') || 'null');
-  if (o) { REGEN.aan = !!o.aan; if (REGEN_KLEUREN[o.kleur]) REGEN.kleur = o.kleur; }
-} catch (e) { /* niet erg */ }
-function bewaarRegen() { try { localStorage.setItem('regen', JSON.stringify(REGEN)); } catch (e) { /* niet erg */ } }
-
-function regenTeken() { return String.fromCharCode(33 + Math.floor(Math.random() * 94)); }   // ! t/m ~
-function regenNieuweDdruppel(k, spreiding) {
-  regenKop[k] = -Math.floor(Math.random() * spreiding);
-  regenLengte[k] = 4 + Math.floor(Math.random() * regenRijen);
-}
-function regenInrichten() {
-  const dpr = window.devicePixelRatio || 1;
-  const b = window.innerWidth, h = window.innerHeight;
-  regenCanvas.width = Math.round(b * dpr);
-  regenCanvas.height = Math.round(h * dpr);
-  regenCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  regenCtx.font = TEKEN_H + 'px "Courier New", monospace';
-  regenCtx.textBaseline = 'top';
-  regenKolommen = Math.ceil(b / TEKEN_B);
-  regenRijen = Math.max(1, Math.ceil(h / TEKEN_H));
-  regenKop = []; regenLengte = [];
-  for (let k = 0; k < regenKolommen; k++) regenNieuweDdruppel(k, regenRijen * 2);
-}
-function regenCel(k, rij, kleur) {
-  regenCtx.clearRect(k * TEKEN_B, (rij - 1) * TEKEN_H, TEKEN_B, TEKEN_H);
-  if (kleur) {
-    regenCtx.fillStyle = kleur;
-    regenCtx.fillText(regenTeken(), k * TEKEN_B + 1, (rij - 1) * TEKEN_H);
-  }
-}
-function regenStap() {
-  for (let k = 0; k < regenKolommen; k++) {
-    const rij = regenKop[k];
-    const staart = rij - regenLengte[k];
-    if (rij >= 1 && rij <= regenRijen) regenCel(k, rij, '#ffd34d');                          // kop: geel
-    if (rij - 1 >= 1 && rij - 1 <= regenRijen) regenCel(k, rij - 1, REGEN_KLEUREN[REGEN.kleur]); // erboven: staartkleur
-    if (staart >= 1 && staart <= regenRijen) regenCel(k, staart, null);                       // einde: wissen
-    regenKop[k]++;
-    if (staart > regenRijen) regenNieuweDdruppel(k, regenRijen);
-  }
-}
-function regenLus(t) {
-  regenRaf = requestAnimationFrame(regenLus);
-  if (t - regenLaatste >= STAP_MS) { regenLaatste = t; regenStap(); }
-}
-function zetRegen(aan) {
-  REGEN.aan = aan;
-  cancelAnimationFrame(regenRaf);
-  regenCanvas.hidden = !aan;
-  if (aan) { regenInrichten(); regenRaf = requestAnimationFrame(regenLus); }
-  else regenCtx.clearRect(0, 0, regenCanvas.width, regenCanvas.height);
-  btnRegen.textContent = 'Regen: ' + (aan ? 'aan' : 'uit');
-  btnRegen.setAttribute('aria-pressed', String(aan));
-  bewaarRegen();
-}
-function zetRegenKleur(kleur) { REGEN.kleur = kleur; bewaarRegen(); }
-btnRegen.addEventListener('click', () => zetRegen(!REGEN.aan));
-window.addEventListener('resize', () => {
-  clearTimeout(regenTimer);
-  regenTimer = setTimeout(() => { if (REGEN.aan) regenInrichten(); }, 200);
-});
-
-zetGeluid(geluidAan);
-zetRegen(REGEN.aan);
-startLevel(0);
-</script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+      zetGeluid(geluidAan);
+      zetRegen(REGEN.aan);
+      startLevel(0);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
 </html>

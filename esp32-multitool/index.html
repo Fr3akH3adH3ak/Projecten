@@ -1,48 +1,86 @@
 <!doctype html>
 <html lang="nl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ESP32-multitool · freakyshits.org</title>
-<meta name="description" content="Een zelf ontworpen handapparaat op een ESP32, met scherm, IR, twee radio's, SD-kaart en accu.">
-<link rel="stylesheet" href="../style.css">
-</head>
-<body>
-<main class="wrap">
-  <a class="terug" href="../">← Terug naar alle projecten</a>
-  <p class="prompt">~$ ./multitool --info</p>
-  <h1>ESP32-multitool</h1>
-  <p class="intro">Een handapparaat dat ik zelf ontwerp en bouw, rond een ESP32: een kleine computer op een printje, met wifi en Bluetooth. Het begon met een tekening op papier.</p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ESP32-multitool · freakyshits.org</title>
+    <meta
+      name="description"
+      content="Een zelf ontworpen handapparaat op een ESP32, met scherm, IR, twee radio's, SD-kaart en accu."
+    />
+    <link rel="stylesheet" href="../style.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <a class="terug" href="../">← Terug naar alle projecten</a>
+      <p class="prompt">~$ ./multitool --info</p>
+      <h1>ESP32-multitool</h1>
+      <p class="intro">
+        Een handapparaat dat ik zelf ontwerp en bouw, rond een ESP32: een kleine computer op een
+        printje, met wifi en Bluetooth. Het begon met een tekening op papier.
+      </p>
 
-  <h2>Wat erin zit</h2>
-  <ul class="leer">
-    <li><strong>OLED-schermpje</strong> met vier knoppen, voor een menu</li>
-    <li><strong>Infrarood</strong>: een zender en een ontvanger, om codes van afstandsbedieningen te lezen en terug te sturen</li>
-    <li><strong>NRF24L01</strong>: een radio op 2,4 GHz</li>
-    <li><strong>CC1101</strong>: een radio op 433 MHz</li>
-    <li><strong>microSD-kaart</strong> om gegevens op te slaan</li>
-    <li><strong>LiPo-accu</strong> met laden via USB-C</li>
-  </ul>
+      <h2>Wat erin zit</h2>
+      <ul class="leer">
+        <li><strong>OLED-schermpje</strong> met vier knoppen, voor een menu</li>
+        <li>
+          <strong>Infrarood</strong>: een zender en een ontvanger, om codes van afstandsbedieningen
+          te lezen en terug te sturen
+        </li>
+        <li><strong>NRF24L01</strong>: een radio op 2,4 GHz</li>
+        <li><strong>CC1101</strong>: een radio op 433 MHz</li>
+        <li><strong>microSD-kaart</strong> om gegevens op te slaan</li>
+        <li><strong>LiPo-accu</strong> met laden via USB-C</li>
+      </ul>
 
-  <h2>Wat ik leerde door het ontwerp na te lopen</h2>
-  <p>Voor ik ga solderen, loop ik het schema na. Een fout op papier kost een gum, een fout op het board kost een avond desolderen of een kapotte ESP32. Een paar dingen die ik zo vond:</p>
-  <ul class="leer">
-    <li><strong>Twee functies op één pin.</strong> In mijn eerste schets deelden de radio en de IR-zender dezelfde pin. Nu heeft elke pin één taak.</li>
-    <li><strong>Opstartpinnen.</strong> Sommige pinnen bepalen hoe de ESP32 opstart. De SD-kaart op GPIO 12 zou ervoor zorgen dat hij niet meer start.</li>
-    <li><strong>Drie modules op één bus.</strong> SD-kaart en beide radio's delen dezelfde SPI-draden. Elke module heeft zijn eigen "chip select", zodat er steeds maar één praat.</li>
-    <li><strong>Rekenen met de wet van Ohm.</strong> Met I = U / R koos ik de weerstanden, zodat de IR-led en de pin van de ESP32 niet te veel stroom krijgen.</li>
-    <li><strong>Een veilige voeding.</strong> Eerst de spanning meten, dan pas de ESP32 aansluiten. En een lader die stevig genoeg is voor de pieken van wifi.</li>
-  </ul>
+      <h2>Wat ik leerde door het ontwerp na te lopen</h2>
+      <p>
+        Voor ik ga solderen, loop ik het schema na. Een fout op papier kost een gum, een fout op het
+        board kost een avond desolderen of een kapotte ESP32. Een paar dingen die ik zo vond:
+      </p>
+      <ul class="leer">
+        <li>
+          <strong>Twee functies op één pin.</strong> In mijn eerste schets deelden de radio en de
+          IR-zender dezelfde pin. Nu heeft elke pin één taak.
+        </li>
+        <li>
+          <strong>Opstartpinnen.</strong> Sommige pinnen bepalen hoe de ESP32 opstart. De SD-kaart
+          op GPIO 12 zou ervoor zorgen dat hij niet meer start.
+        </li>
+        <li>
+          <strong>Drie modules op één bus.</strong> SD-kaart en beide radio's delen dezelfde
+          SPI-draden. Elke module heeft zijn eigen "chip select", zodat er steeds maar één praat.
+        </li>
+        <li>
+          <strong>Rekenen met de wet van Ohm.</strong> Met I = U / R koos ik de weerstanden, zodat
+          de IR-led en de pin van de ESP32 niet te veel stroom krijgen.
+        </li>
+        <li>
+          <strong>Een veilige voeding.</strong> Eerst de spanning meten, dan pas de ESP32
+          aansluiten. En een lader die stevig genoeg is voor de pieken van wifi.
+        </li>
+      </ul>
 
-  <h2>Hoe ver ik ben</h2>
-  <div class="blok">
-    <p>Het ontwerp is nagekeken en het bouwplan staat klaar. Ik bouw in zes fases en test na elke fase: eerst de voeding, dan het board, het scherm en de knoppen, de IR, de modules één voor één, en tot slot alles op de accu. Daarna schrijf ik de software met een menu op het scherm. Foto's volgen zodra hij gebouwd wordt.</p>
-  </div>
+      <h2>Hoe ver ik ben</h2>
+      <div class="blok">
+        <p>
+          Het ontwerp is nagekeken en het bouwplan staat klaar. Ik bouw in zes fases en test na elke
+          fase: eerst de voeding, dan het board, het scherm en de knoppen, de IR, de modules één
+          voor één, en tot slot alles op de accu. Daarna schrijf ik de software met een menu op het
+          scherm. Foto's volgen zodra hij gebouwd wordt.
+        </p>
+      </div>
 
-  <h2>Mijn regel</h2>
-  <p>Ik zend met IR en radio alleen naar mijn eigen apparaten. Een stoorzender bouwen of gebruiken is in Nederland verboden.</p>
+      <h2>Mijn regel</h2>
+      <p>
+        Ik zend met IR en radio alleen naar mijn eigen apparaten. Een stoorzender bouwen of
+        gebruiken is in Nederland verboden.
+      </p>
 
-  <footer>© 2026 Silvano Rinaldi · Alle rechten voorbehouden. Dit ontwerp is mijn eigen werk. Bekijken mag, kopiëren of nabouwen alleen met mijn toestemming.</footer>
-</main>
-</body>
+      <footer>
+        © 2026 Silvano Rinaldi · Alle rechten voorbehouden. Dit ontwerp is mijn eigen werk. Bekijken
+        mag, kopiëren of nabouwen alleen met mijn toestemming.
+      </footer>
+    </main>
+  </body>
 </html>
