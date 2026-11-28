@@ -74,6 +74,11 @@
           vond ik de oorzaak: in de kernel van Alpine ontbrak de klok-regelaar van de A33-chip. Dus
           bouwde ik zelf Linux 6.12, met alles voor deze tablet erin.
         </li>
+        <li>
+          <strong>Zonder laptop, met wifi.</strong> Na een controle van de SD-kaart zette ik U-Boot
+          met <code>dd</code> op de kaart. Daarna bouwde ik het wifi-stuurprogramma voor de chip. Nu
+          start de tablet zelf, en log ik in via SSH.
+        </li>
       </ol>
 
       <h2>Wat ik ervan leerde</h2>
@@ -101,13 +106,14 @@
       <h2>Hoe ver ik ben</h2>
       <div class="blok">
         <p>
-          <strong>De tablet start in Linux, zonder Android.</strong> Op 28 november om 05:27 startte
-          mijn eigen U-Boot mijn eigen kernel, en daarna Alpine. Het duurde bijna tien uur.
+          <strong>De tablet is nu een losse Linux-computer.</strong> Hij start zelf op van de
+          SD-kaart, zonder laptop en zonder Android: mijn eigen U-Boot, mijn eigen kernel en Alpine.
+          De wifi werkt, en ik log in via SSH vanaf mijn iPhone. Op 28 november om 07:56 was het
+          zover, ruim twaalf uur na de start.
         </p>
         <p>
-          Volgende stappen: wifi en een toetsenbord met de nieuwe kernel, en alles op de SD-kaart
-          zetten zodat de tablet zonder laptop opstart. Daarna wordt een laptop met Linux mijn echte
-          werkmachine.
+          Volgende stappen: het scherm de goede breedte geven, een vast adres op mijn wifi en een
+          toetsenbord. Daarna wordt een laptop met Linux mijn echte werkmachine.
         </p>
       </div>
 
