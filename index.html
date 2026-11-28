@@ -40,11 +40,26 @@
   <h2>Spiekbriefjes</h2>
   <div class="blok">
     <p>Ik maak spiekbriefjes van één A4 in gewoon Nederlands: alleen wat je echt nodig hebt, met de fouten die ik zelf maakte.</p>
-    <p>De bundel heeft 26 briefjes over onder meer Linux, Git, Python, HTML, CSS, JavaScript, PHP, SQL, C, netwerken, DNS, webbeveiliging, Alpine Linux op een tablet en een ESP32. De briefjes zijn betaald, de prijs krijg je op aanvraag.</p>
-    <p class="zacht">Een manier om contact op te nemen komt hier binnenkort.</p>
+    <p>De bundel heeft 26 briefjes over onder meer Linux, Git, Python, HTML, CSS, JavaScript, PHP, SQL, C, netwerken, DNS, webbeveiliging, Alpine Linux op een tablet en een ESP32. De briefjes zijn betaald, de prijs krijg je op aanvraag (zie <a href="#contact">contact</a>).</p>
   </div>
 
-  <!-- CONTACT: komt hier zodra het e-mailadres bekend is -->
+  <h2>Contact</h2>
+  <div class="blok" id="contact">
+    <p>Wil je een prijs voor de spiekbriefjes of mijn leermateriaal, of heb je een vraag over een project? Bel, app of mail me.</p>
+    <p><a class="knop" id="mailknop" href="#contact">E-mail</a> <a class="knop" id="belknop" href="#contact">Bel of app</a></p>
+    <p class="zacht" id="contactregel">Zet JavaScript aan om mijn e-mailadres en nummer te zien.</p>
+  </div>
+  <script>
+  (function () {
+    var m = ['freakmoremorefreaks', 'outlook.com'].join('@');
+    var t = ['06', '1999', '4514'];
+    var mail = document.getElementById('mailknop');
+    var bel = document.getElementById('belknop');
+    mail.href = 'mailto:' + m + '?subject=' + encodeURIComponent('Vraag via freakyshits.org');
+    bel.href = 'tel:+31' + t.join('').slice(1);
+    document.getElementById('contactregel').textContent = m + ' · ' + t.join('-');
+  })();
+  </script>
 
   <footer>© 2026 Silvano Rinaldi · Alle rechten voorbehouden. Bekijken en uitproberen mag, kopiëren of hergebruiken alleen met mijn toestemming.</footer>
 </main>
