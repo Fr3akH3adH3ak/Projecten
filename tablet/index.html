@@ -62,6 +62,18 @@
           tekst, en met chafa en twee eigen Python-scripts zet ik een foto om in gekleurde blokjes
           of tekens.
         </li>
+        <li>
+          <strong>Zelf U-Boot bouwen.</strong> U-Boot is het programma dat na het aanzetten Linux
+          laadt. Ik bouwde het zelf en testte het via USB in het geheugen van de tablet, zonder iets
+          te veranderen. Onderweg repareerde ik een fout in U-Boot zelf: het rekende met een getal
+          van 32 bits, en dat liep over bij mijn SD-kaart van 119 GB.
+        </li>
+        <li>
+          <strong>Mijn eigen Linux-kernel.</strong> Na "Starting kernel" bleef het scherm stil. Door
+          de tablet te laten herstarten als lampje en een logbestand op de SD-kaart te schrijven,
+          vond ik de oorzaak: in de kernel van Alpine ontbrak de klok-regelaar van de A33-chip. Dus
+          bouwde ik zelf Linux 6.12, met alles voor deze tablet erin.
+        </li>
       </ol>
 
       <h2>Wat ik ervan leerde</h2>
@@ -78,14 +90,24 @@
           Veilig werken: een webserver op je wifi zet je meteen weer uit, en een chroot is geen
           beveiliging.
         </li>
+        <li>Hoe een apparaat opstart: de chip, de bootloader (U-Boot) en daarna de kernel.</li>
+        <li>Eerst testen zonder iets te veranderen, dan pas iets op de kaart schrijven.</li>
+        <li>
+          Zoeken zonder scherm: laat het apparaat iets doen dat je wél ziet, en lees de instellingen
+          van de kernel.
+        </li>
       </ul>
 
       <h2>Hoe ver ik ben</h2>
       <div class="blok">
         <p>
-          Alpine draait en komt na een herstart met één commando terug. Volgende stap: de tablet
-          direct in Alpine laten opstarten, zonder eerst het Android-scherm. Daarna wordt een laptop
-          met Linux mijn echte werkmachine.
+          <strong>De tablet start in Linux, zonder Android.</strong> Op 28 november om 05:27 startte
+          mijn eigen U-Boot mijn eigen kernel, en daarna Alpine. Het duurde bijna tien uur.
+        </p>
+        <p>
+          Volgende stappen: wifi en een toetsenbord met de nieuwe kernel, en alles op de SD-kaart
+          zetten zodat de tablet zonder laptop opstart. Daarna wordt een laptop met Linux mijn echte
+          werkmachine.
         </p>
       </div>
 
